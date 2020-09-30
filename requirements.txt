@@ -1,3 +1,223 @@
-pandas
-scikit-learn
-seaborn
+from pathlib import Path
+import pandas as pd   #pandas modules 
+import seaborn as sns  #seaborn modules
+from sklearn.linear_model import LinearRegression # scikit-learn modules
+from sklearn.cluster import MiniBatchKMeans, KMeans # scikit-learn module
+from sklearn.metrics.pairwise import pairwise_distances_argmin
+from sklearn.datasets import make_blobs
+
+# Define paths to our data
+
+data_path = Path("data")
+radiomics_path = data_path.joinpath("HN_Radiomics.csv")
+clinical_data_path = data_path.joinpath("HN_ClinicalData.csv")
+
+# Load the data
+
+df_clinical_data = pd.read_csv(clinical_data_path)
+df_radiomics = pd.read_csv(radiomics_path)
+
+# load radiomics data into programme
+
+df_gtv_radiomics = df_radiomics[df_radiomics["Structure"].str.startswith("GTV")]
+df_gtv_radiomics = df_gtv_radiomics.groupby("id")[["VoxelVolume", "SurfaceArea"]].sum()
+
+df_Entropy_radiomics = df_radiomics[df_radiomics["id"].str.startswith("Entropy")]
+df_Kurtosis_radiomics = df_radiomics[df_radiomics["id"].str.startswith("Kurtosis")]
+df_Skewness_radiomics = df_radiomics[df_radiomics["id"].str.startswith("Skewness")]
+df_TotalEnergy_radiomics = df_radiomics[df_radiomics["id"].str.startswith("TotalEnergy")]
+df_Max3DDia_radiomics = df_radiomics[df_radiomics["id"].str.startswith("Maximum3DDiameter")]
+df_Uniformity_radiomics = df_radiomics[df_radiomics["id"].str.startswith("Uniformity")]
+df_Elongation_radiomics = df_radiomics[df_radiomics["id"].str.startswith("Elongation")]
+df_Variance_radiomics = df_radiomics[df_radiomics["id"].str.startswith("Variance")]
+
+# load clinical_data into programme
+
+df = df_clinical_data.merge(df_gtv_radiomics, on="id")
+
+
+# Plot the data
+pair_grid = sns.PairGrid(df, y_vars=["overall_survival_in_days"], x_vars=["VoxelVolume", "SurfaceArea"], height=6, hue="dataset")
+ax = pair_grid.map(sns.scatterplot)
+ax = pair_grid.add_legend()
+
+# for ROC show the related data
+roc_grid = sns.PairGrid(df, y_vars=["index_tumour_location"], x_vars=["distant_metastases_in_days", "local_recurrence_in_days"], height=8, hue="dataset")
+roc_ax = roc_grid.map(sns.scatterplot)
+roc_ax = roc_grid.add_legend()
+
+
+# fitting model
+X_train = df[df["dataset"]=="train"][["VoxelVolume", "SurfaceArea"]]
+X_test = df[df["dataset"]=="test"][["VoxelVolume", "SurfaceArea"]]
+
+y_train = df[df["dataset"]=="train"]["overall_survival_in_days"]
+y_test = df[df["dataset"]=="test"]["overall_survival_in_days"]
+
+reg_VoxelVolume_SurArea = LinearRegression().fit(X_train, y_train)
+
+
+#KMeans
+kmeans_Entropy = KMeans(init='k-means++', df_Entropy_radiomics=4, n_init=10)
+kmeans_Entropy.fit(X)
+
+kmeans_gtv = KMeans(init='k-means++', df_gtv_radiomics=4, n_init=10)
+kmeans_gtv.fit(X)
+
+kmeans_Kurtosis = KMeans(init='k-means++', df_Kurtosis_radiomics=10, n_init=40)
+kmeans_Kurtosis.fit(X)
+
+kmeans_Skewness = KMeans(init='k-means++', df_Skewness_radiomics=5, n_init=10)
+kmeans_Skewness.fit(X)
+
+kmeans_TotalEnergy = KMeans(init='k-means++', df_TotalEnergy_radiomics=10, n_init=10)
+kmeans_TotalEnergy.fit(X)
+
+kmeans_Max3DDia = KMeans(init='k-means++', df_Max3DDia_radiomics=200, n_init=10)
+kmeans_Max3DDia.fit(X)
+
+kmeans_Uniformity = KMeans(init='k-means++', df_Uniformity_radiomics=50, n_init=10)
+kmeans_Uniformity.fit(X)
+
+kmeans_Elongation = KMeans(init='k-means++', df_Elongation_radiomics=10, n_init=10)
+kmeans_Elongation.fit(X)
+
+kmeans_Variance = KMeans(init='k-means++', df_Variance_radiomics=5, n_init=10)
+kmeans_Variance.fit(X)
+
+#plot results
+fig = plot.figure(figsize=(8, 3))
+fig.subplots_adjust(left=0.02, right=0.98, bottom=0.05, top=0.9)
+colors = ['#4EACC5', '#FF9C34', '#4E9A06']
+
+ax = fig.add_subplot(3, 3, 1)
+kmeans_Entropy_labels = pairwise_distances_argmin(X, kmeans_Entropy)
+
+for k, col in zip(range(kmeans_Entropy), colors):
+    my_members = kmeans_Entropy_labels == k
+    cluster_center = kmeans_Entropy[k]
+    ax.plot(X[my_members, 0], X[my_members, 1], 'w',
+            markerfacecolor=col, marker='.')
+    ax.plot(cluster_center[0], cluster_center[1], 'o', markerfacecolor=col,
+            markeredgecolor='k', markersize=6)
+ax.set_title('Kmeans_Entropy')
+ax.set_xticks(())
+ax.set_yticks(())
+
+
+ax = fig.add_subplot(3, 3, 2)
+kmeans_gtv_labels = pairwise_distances_argmin(X, kmeans_gtv)
+
+for k, col in zip(range(kmeans_gtv), colors):
+    my_members = kmeans_gtv_labels == k
+    cluster_center = kmeans_gtv[k]
+    ax.plot(X[my_members, 0], X[my_members, 1], 'w',
+            markerfacecolor=col, marker='.')
+    ax.plot(cluster_center[0], cluster_center[1], 'o', markerfacecolor=col,
+            markeredgecolor='k', markersize=6)
+ax.set_title('Kmeans_gtv')
+ax.set_xticks(())
+ax.set_yticks(())
+
+ax = fig.add_subplot(3, 3, 3)
+kmeans_Kurtosis _labels = pairwise_distances_argmin(X, kmeans_Kurtosis )
+
+for k, col in zip(range(kmeans_Kurtosis ), colors):
+    my_members = kmeans_Kurtosis _labels == k
+    cluster_center = kmeans_Kurtosis [k]
+    ax.plot(X[my_members, 0], X[my_members, 1], 'w',
+            markerfacecolor=col, marker='.')
+    ax.plot(cluster_center[0], cluster_center[1], 'o', markerfacecolor=col,
+            markeredgecolor='k', markersize=6)
+ax.set_title('Kmeans_Kurtosis ')
+ax.set_xticks(())
+ax.set_yticks(())
+
+ax = fig.add_subplot(3, 3, 4)
+kmeans_Skewness_labels = pairwise_distances_argmin(X, kmeans_Skewness)
+
+for k, col in zip(range(kmeans_Skewness), colors):
+    my_members = kmeans_Skewness_labels == k
+    cluster_center = kmeans_Skewness[k]
+    ax.plot(X[my_members, 0], X[my_members, 1], 'w',
+            markerfacecolor=col, marker='.')
+    ax.plot(cluster_center[0], cluster_center[1], 'o', markerfacecolor=col,
+            markeredgecolor='k', markersize=6)
+ax.set_title('Kmeans_Skewness')
+ax.set_xticks(())
+ax.set_yticks(())
+
+ax = fig.add_subplot(3, 3, 5)
+kmeans_TotalEnergy_labels = pairwise_distances_argmin(X, kmeans_TotalEnergy)
+
+for k, col in zip(range(kmeans_TotalEnergy), colors):
+    my_members = kmeans_TotalEnergy_labels == k
+    cluster_center = kmeans_TotalEnergy[k]
+    ax.plot(X[my_members, 0], X[my_members, 1], 'w',
+            markerfacecolor=col, marker='.')
+    ax.plot(cluster_center[0], cluster_center[1], 'o', markerfacecolor=col,
+            markeredgecolor='k', markersize=6)
+ax.set_title('Kmeans_TotalEnergy')
+ax.set_xticks(())
+ax.set_yticks(())
+
+ax = fig.add_subplot(3, 3, 6)
+kmeans_Max3DDia_labels = pairwise_distances_argmin(X, kmeans_Max3DDia)
+
+for k, col in zip(range(kmeans_Max3DDia), colors):
+    my_members = kmeans_Max3DDia_labels == k
+    cluster_center = kmeans_Max3DDia[k]
+    ax.plot(X[my_members, 0], X[my_members, 1], 'w',
+            markerfacecolor=col, marker='.')
+    ax.plot(cluster_center[0], cluster_center[1], 'o', markerfacecolor=col,
+            markeredgecolor='k', markersize=6)
+ax.set_title('Kmeans_Max3DDia')
+ax.set_xticks(())
+ax.set_yticks(())
+
+ax = fig.add_subplot(3, 3, 7)
+kmeans_Uniformity_labels = pairwise_distances_argmin(X, kmeans_Uniformity)
+
+for k, col in zip(range(kmeans_Uniformity), colors):
+    my_members = kmeans_Uniformity_labels == k
+    cluster_center = kmeans_Uniformity[k]
+    ax.plot(X[my_members, 0], X[my_members, 1], 'w',
+            markerfacecolor=col, marker='.')
+    ax.plot(cluster_center[0], cluster_center[1], 'o', markerfacecolor=col,
+            markeredgecolor='k', markersize=6)
+ax.set_title('Kmeans_Uniformity')
+ax.set_xticks(())
+ax.set_yticks(())
+
+ax = fig.add_subplot(3, 3, 8)
+kmeans_Elongationy_labels = pairwise_distances_argmin(X, kmeans_Elongation)
+
+for k, col in zip(range(kmeans_Elongation), colors):
+    my_members = kmeans_Elongation_labels == k
+    cluster_center = kmeans_Elongation[k]
+    ax.plot(X[my_members, 0], X[my_members, 1], 'w',
+            markerfacecolor=col, marker='.')
+    ax.plot(cluster_center[0], cluster_center[1], 'o', markerfacecolor=col,
+            markeredgecolor='k', markersize=6)
+ax.set_title('Kmeans_Elongation')
+ax.set_xticks(())
+ax.set_yticks(())
+
+ax = fig.add_subplot(3, 3, 9)
+kmeans_Variance _labels = pairwise_distances_argmin(X, kmeans_Variance )
+
+for k, col in zip(range(kmeans_Variance ), colors):
+    my_members = kmeans_Entropy_labels == k
+    cluster_center = kmeans_Variance [k]
+    ax.plot(X[my_members, 0], X[my_members, 1], 'w',
+            markerfacecolor=col, marker='.')
+    ax.plot(cluster_center[0], cluster_center[1], 'o', markerfacecolor=col,
+            markeredgecolor='k', markersize=6)
+ax.set_title('Kmeans_Variance ')
+ax.set_xticks(())
+ax.set_yticks(())
+
+
+plot.show()
+
+
